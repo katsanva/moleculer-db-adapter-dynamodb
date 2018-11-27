@@ -23,6 +23,10 @@ class DynamoDbAdapter {
    */
   constructor(opts) {
     this.opts = opts;
+
+    if (!opts.aws) {
+      throw new Error('aws config should be provided');
+    }
   }
 
   /**
@@ -36,28 +40,25 @@ class DynamoDbAdapter {
   init(broker, service) {
     this.broker = broker;
     this.service = service;
+    const { aws } = this.opts;
 
-    AWS.config.update(this.opts);
+    AWS.config.update(aws);
 
-    if (this.service.schema.model) {
-      this.model = this.service.schema.model;
-
-      this.methods = {
-        create: promisifyMethod(this.model, 'create'),
-        get: promisifyMethod(this.model, 'get'),
-        update: promisifyMethod(this.model, 'update'),
-        destroy: promisifyMethod(this.model, 'destroy'),
-        describeTable: promisifyMethod(this.model, 'describeTable'),
-        createTable: promisifyMethod(this.model, 'describeTable'),
-      };
-
-      return;
-    }
-
-    if (this.service.schema.schema) {
+    if (!this.service.schema.model) {
       /* istanbul ignore next */
       throw new Error('Missing `model` or definition in schema of service!');
     }
+
+    this.model = this.service.schema.model;
+
+    this.methods = {
+      create: promisifyMethod(this.model, 'create'),
+      get: promisifyMethod(this.model, 'get'),
+      update: promisifyMethod(this.model, 'update'),
+      destroy: promisifyMethod(this.model, 'destroy'),
+      describeTable: promisifyMethod(this.model, 'describeTable'),
+      createTable: promisifyMethod(this.model, 'describeTable'),
+    };
   }
 
   /**
@@ -73,17 +74,19 @@ class DynamoDbAdapter {
 
     this.model.config({ dynamodb });
 
-    await new Promise((resolve, reject) =>
-      this.model.createTable((err, r) => {
-        if (err) {
-          if (err.code !== 'ResourceInUseException') {
-            return reject(err);
+    if (this.opts.shouldCreateTable) {
+      await new Promise((resolve, reject) =>
+        this.model.createTable((err, r) => {
+          if (err) {
+            if (err.code !== 'ResourceInUseException') {
+              return reject(err);
+            }
           }
-        }
 
-        resolve(r);
-      }),
-    );
+          resolve(r);
+        }),
+      );
+    }
 
     const res = await new Promise((r, j) =>
       this.model.describeTable((err, res) => {

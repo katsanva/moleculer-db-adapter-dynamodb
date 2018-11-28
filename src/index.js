@@ -148,7 +148,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findById(_id) {
-    return this.model.get(_id);
+    return this.methods.get(_id);
   }
 
   /**
@@ -234,7 +234,9 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   updateById(id, update) {
-    return this.methods.update({ ...update, [this.hashKey]: id });
+    const data = { ...update.$set, [this.hashKey]: id };
+
+    return this.methods.update(data);
   }
 
   /**

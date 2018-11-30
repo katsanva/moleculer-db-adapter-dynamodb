@@ -148,7 +148,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findById(_id) {
-    return this.methods.get(_id);
+    return this.methods.get(_id).then(res => res.toJSON());
   }
 
   /**

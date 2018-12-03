@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon examples/index.js",
-    "ci": "jest --watch",
+    "watch:test": "jest --watch",
     "test": "jest --coverage",
     "lint": "eslint --ext=.js src test",
     "deps": "npm-check -u",

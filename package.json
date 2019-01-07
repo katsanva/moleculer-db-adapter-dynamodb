@@ -47,5 +47,6 @@
     "bluebird": "3.5.2",
     "lodash": "4.17.11",
     "uuid": "^3.3.2"
-  }
+  },
+  "repository": "katsanva/moleculer-db-adapter-dynamodb"
 }

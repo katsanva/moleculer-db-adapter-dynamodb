@@ -1,6 +1,6 @@
 {
   "name": "moleculer-db-adapter-dynamodb",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "DynamoDB adapter for Moleculer DB service",
   "main": "index.js",
   "scripts": {

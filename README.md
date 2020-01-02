@@ -34,15 +34,19 @@ broker.createService({
   name: 'posts',
   mixins: [DbService],
   adapter: new DynamoAdapter({
+  aws:{
     accessKeyId: '', // your id here
     secretAccessKey: '', // your key here
     region: '', // your region here
-  }),
+  }}),
   model: dynamodb.define('Post', {
-    id: dynamo.types.uuid(),
+  hashKey: "id",
+  schema: {
+    id: dynamodb.types.uuid(),
     title: Joi.string().required(),
     content: Joi.string().required(),
     votes: Joi.number(),
+    }
   }),
 });
 

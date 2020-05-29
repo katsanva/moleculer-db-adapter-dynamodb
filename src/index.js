@@ -148,7 +148,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findById(_id) {
-    return this.methods.get(_id).then(res => res ? res.toJSON() : null);
+    return this.methods.get(_id);
   }
 
   /**
@@ -270,7 +270,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   entityToObject(entity) {
-    return entity;
+    return entity.toJSON();
   }
 
   /**

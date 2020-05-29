@@ -270,7 +270,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   entityToObject(entity) {
-    return entity.toJSON();
+    return entity;
   }
 
   /**

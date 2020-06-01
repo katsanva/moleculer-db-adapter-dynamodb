@@ -138,6 +138,11 @@ class DynamoDbAdapter {
       }),
     );
   }
+  
+  async findOne(filters) {
+    const item = await this.find({ query, {...filters, ...{limit: 1} });
+    return item.length === 1 ? item[0] : null;
+  }
 
   /**
    * Find an entities by ID

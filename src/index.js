@@ -204,9 +204,9 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insert(entity) {
-    if (!entity.id) {
-      entity.id = uuid.v4();
-    }
+//     if (!entity.id) {
+//       entity.id = uuid.v4();
+//     }
 
     return this.methods.create(entity);
   }
@@ -220,11 +220,11 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insertMany(entities) {
-    entities.forEach(entity => {
-      if (!entity.id) {
-        entity.id = uuid.v4();
-      }
-    });
+//     entities.forEach(entity => {
+//       if (!entity.id) {
+//         entity.id = uuid.v4();
+//       }
+//     });
 
     return this.methods.create(entities);
   }

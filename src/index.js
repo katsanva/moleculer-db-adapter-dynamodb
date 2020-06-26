@@ -88,16 +88,21 @@ class DynamoDbAdapter {
       );
     }
 
-    const res = await new Promise((r, j) =>
-      this.model.describeTable((err, res) => {
-        if (err) j(err);
-        r(res);
-      }),
-    );
+// remove unnecessary lookups of hashKey when its user provided
+//     const res = await new Promise((r, j) =>
+//       this.model.describeTable((err, res) => {
+//         if (err) j(err);
+//         r(res);
+//       }),
+//     );
 
-    this.hashKey = res.Table.KeySchema.find(
-      ({ KeyType }) => KeyType === 'HASH',
-    ).AttributeName;
+//     this.hashKey = res.Table.KeySchema.find(
+//       ({ KeyType }) => KeyType === 'HASH',
+//     ).AttributeName;
+    
+    this.hashKey = this.opts.hashKey;
+    this.rangeKey = this.opts.rangeKey;
+    this.indexes = this.opts.indexes;
   }
 
   /**
@@ -165,6 +170,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findByIds(idList) {
+    //TODO: this is very inefficient.  refactor
     return new Promise((resolve, reject) => {
       this.model
         .scan()
@@ -192,6 +198,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   count(/*filters = {}*/) {
+    //TODO: this is crap
     return 0;
   }
 
@@ -204,6 +211,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insert(entity) {
+// this is unnecessary
 //     if (!entity.id) {
 //       entity.id = uuid.v4();
 //     }
@@ -220,6 +228,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insertMany(entities) {
+// this is unnecessary
 //     entities.forEach(entity => {
 //       if (!entity.id) {
 //         entity.id = uuid.v4();
@@ -239,11 +248,14 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   updateById(id, update) {
+    //TODO: what about range key?
     const data = { ...update.$set, [this.hashKey]: id };
 
     return this.methods.update(data);
   }
 
+  //TODO: missing straight update method
+  
   /**
    * Remove an entity by ID
    *

@@ -88,16 +88,21 @@ class DynamoDbAdapter {
       );
     }
 
-    const res = await new Promise((r, j) =>
-      this.model.describeTable((err, res) => {
-        if (err) j(err);
-        r(res);
-      }),
-    );
+// remove unnecessary lookups of hashKey when its user provided
+//     const res = await new Promise((r, j) =>
+//       this.model.describeTable((err, res) => {
+//         if (err) j(err);
+//         r(res);
+//       }),
+//     );
 
-    this.hashKey = res.Table.KeySchema.find(
-      ({ KeyType }) => KeyType === 'HASH',
-    ).AttributeName;
+//     this.hashKey = res.Table.KeySchema.find(
+//       ({ KeyType }) => KeyType === 'HASH',
+//     ).AttributeName;
+    
+    this.hashKey = this.opts.hashKey;
+    this.rangeKey = this.opts.rangeKey;
+    this.indexes = this.opts.indexes;
   }
 
   /**
@@ -138,6 +143,11 @@ class DynamoDbAdapter {
       }),
     );
   }
+  
+  async findOne(filters) {
+    const item = await this.find({...filters, ...{limit: 1} });
+    return item.length === 1 ? item[0] : null;
+  }
 
   /**
    * Find an entities by ID
@@ -148,7 +158,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findById(_id) {
-    return this.methods.get(_id).then(res => res.toJSON());
+    return this.methods.get(_id);
   }
 
   /**
@@ -160,6 +170,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   findByIds(idList) {
+    //TODO: this is very inefficient.  refactor
     return new Promise((resolve, reject) => {
       this.model
         .scan()
@@ -187,6 +198,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   count(/*filters = {}*/) {
+    //TODO: this is crap
     return 0;
   }
 
@@ -199,9 +211,10 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insert(entity) {
-    if (!entity.id) {
-      entity.id = uuid.v4();
-    }
+// this is unnecessary
+//     if (!entity.id) {
+//       entity.id = uuid.v4();
+//     }
 
     return this.methods.create(entity);
   }
@@ -215,11 +228,12 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   insertMany(entities) {
-    entities.forEach(entity => {
-      if (!entity.id) {
-        entity.id = uuid.v4();
-      }
-    });
+// this is unnecessary
+//     entities.forEach(entity => {
+//       if (!entity.id) {
+//         entity.id = uuid.v4();
+//       }
+//     });
 
     return this.methods.create(entities);
   }
@@ -234,11 +248,14 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   updateById(id, update) {
+    //TODO: what about range key?
     const data = { ...update.$set, [this.hashKey]: id };
 
     return this.methods.update(data);
   }
 
+  //TODO: missing straight update method
+  
   /**
    * Remove an entity by ID
    *
@@ -270,7 +287,7 @@ class DynamoDbAdapter {
    * @memberof DynamoDbAdapter
    */
   entityToObject(entity) {
-    return entity;
+    return typeof entity.toJSON === 'function' ? entity.toJSON() : entity;
   }
 
   /**

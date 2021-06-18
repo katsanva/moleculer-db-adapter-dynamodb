@@ -1,9 +1,3 @@
-/*
- * moleculer-db-adapter-mongoose
- * Copyright (c) 2017 MoleculerJS (https://github.com/moleculerjs/moleculer-db)
- * MIT Licensed
- */
+'use strict';
 
-"use strict";
-
-module.exports = require("./src");
+module.exports = require('./src');

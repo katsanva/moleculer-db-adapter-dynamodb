@@ -1,23 +1,11 @@
 const _ = require('lodash');
-const Promise = require('bluebird');
 const AWS = require('aws-sdk');
-const uuid = require('uuid');
-const promisifyMethod = (obj, name) => (...args) =>
-  new Promise((resolve, reject) =>
-    obj[name](...args, (err, res) => {
-      if (err) {
-        return reject(err);
-      }
-
-      resolve(res);
-    }),
-  );
 
 class DynamoDbAdapter {
   /**
    * Creates an instance of DynamoDbAdapter.
-   * @param {String} uri
-   * @param {Object?} opts
+   * @param {string} uri
+   * @param {unknown} [opts]
    *
    * @memberof DynamoDbAdapter
    */
@@ -32,8 +20,8 @@ class DynamoDbAdapter {
   /**
    * Initialize adapter
    *
-   * @param {ServiceBroker} broker
-   * @param {Service} service
+   * @param {import('moleculer').ServiceBroker} broker
+   * @param {import('moleculer').Service} service
    *
    * @memberof DynamoDbAdapter
    */
@@ -49,22 +37,16 @@ class DynamoDbAdapter {
       throw new Error('Missing `model` or definition in schema of service!');
     }
 
+    /**
+     * @type import('dynamodb').Model
+     */
     this.model = this.service.schema.model;
-
-    this.methods = {
-      create: promisifyMethod(this.model, 'create'),
-      get: promisifyMethod(this.model, 'get'),
-      update: promisifyMethod(this.model, 'update'),
-      destroy: promisifyMethod(this.model, 'destroy'),
-      describeTable: promisifyMethod(this.model, 'describeTable'),
-      createTable: promisifyMethod(this.model, 'describeTable'),
-    };
   }
 
   /**
    * Connect to database
    *
-   * @returns {Promise}
+   * @returns {Promise<void>}
    *
    * @memberof DynamoDbAdapter
    */
@@ -75,31 +57,27 @@ class DynamoDbAdapter {
     this.model.config({ dynamodb });
 
     if (this.opts.shouldCreateTable) {
-      await new Promise((resolve, reject) =>
-        this.model.createTable((err, r) => {
-          if (err) {
-            if (err.code !== 'ResourceInUseException') {
-              return reject(err);
-            }
-          }
+      await this.model.createTable().catch((err) => {
+        if (err.code === 'ResourceInUseException') {
+          return;
+        }
 
-          resolve(r);
-        }),
-      );
+        throw err;
+      });
     }
 
-// remove unnecessary lookups of hashKey when its user provided
-//     const res = await new Promise((r, j) =>
-//       this.model.describeTable((err, res) => {
-//         if (err) j(err);
-//         r(res);
-//       }),
-//     );
+    // remove unnecessary lookups of hashKey when its user provided
+    //     const res = await new Promise((r, j) =>
+    //       this.model.describeTable((err, res) => {
+    //         if (err) j(err);
+    //         r(res);
+    //       }),
+    //     );
 
-//     this.hashKey = res.Table.KeySchema.find(
-//       ({ KeyType }) => KeyType === 'HASH',
-//     ).AttributeName;
-    
+    //     this.hashKey = res.Table.KeySchema.find(
+    //       ({ KeyType }) => KeyType === 'HASH',
+    //     ).AttributeName;
+
     this.hashKey = this.opts.hashKey;
     this.rangeKey = this.opts.rangeKey;
     this.indexes = this.opts.indexes;
@@ -108,7 +86,7 @@ class DynamoDbAdapter {
   /**
    * Disconnect from database
    *
-   * @returns {Promise}
+   * @returns {Promise<void>}
    *
    * @memberof DynamoDbAdapter
    */
@@ -120,32 +98,33 @@ class DynamoDbAdapter {
    * Find all entities by filters.
    *
    * Available filter props:
-   * 	- limit
-   *  - offset
-   *  - sort
-   *  - search
-   *  - searchFields
-   *  - query
    *
-   * @param {any} filters
-   * @returns {Promise}
+   * @param {object} filters
+   * @param {number} filters.limit
+   * @param {number} filters.offset
+   * @param {*} filters.sort
+   * @param {*} filters.search
+   * @param {*} filters.searchFields
+   * @param {*} filters.searchFields
+   * @param {*} filters.query
+   * @returns {Promise<T>}
    *
    * @memberof DynamoDbAdapter
    */
-  find(filters) {
-    return new Promise((resolve, reject) =>
-      this.createCursor(filters).exec((err, res) => {
-        if (err) {
-          return reject(err);
-        }
+  async find(filters) {
+    const { Items } = await this.createCursor(filters).exec();
 
-        resolve(res.Items);
-      }),
-    );
+    return Items;
   }
-  
+
+  /**
+   *
+   * @param {*} filters
+   * @returns {Promise<any>}
+   */
   async findOne(filters) {
-    const item = await this.find({...filters, ...{limit: 1} });
+    const item = await this.find({ ...filters, ...{ limit: 1 } });
+
     return item.length === 1 ? item[0] : null;
   }
 
@@ -153,35 +132,26 @@ class DynamoDbAdapter {
    * Find an entities by ID
    *
    * @param {any} _id
-   * @returns {Promise}
+   * @returns {Promise<import('dynamodb').Model>}
    *
    * @memberof DynamoDbAdapter
    */
   findById(_id) {
-    return this.methods.get(_id);
+    return this.model.get(_id);
   }
 
   /**
    * Find any entities by IDs
    *
-   * @param {Array} idList
-   * @returns {Promise}
+   * @param {string[]} idList
+   * @returns {ReturnType<ReturnType<import('dynamodb').Model['scan']>['exec']>}
    *
    * @memberof DynamoDbAdapter
    */
   findByIds(idList) {
     //TODO: this is very inefficient.  refactor
-    return new Promise((resolve, reject) => {
-      this.model
-        .scan()
-        .where(this.hashKey)
-        .in(idList)
-        .exec((err, res) => {
-          if (err) return reject(err);
 
-          resolve(res);
-        });
-    });
+    return this.model.scan().where(this.hashKey).in(idList).exec();
   }
 
   /**
@@ -192,8 +162,8 @@ class DynamoDbAdapter {
    *  - searchFields
    *  - query
    *
-   * @param {Object} [filters={}]
-   * @returns {Promise}
+   * @param {object} [filters={}]
+   * @returns {number}
    *
    * @memberof DynamoDbAdapter
    */
@@ -206,36 +176,36 @@ class DynamoDbAdapter {
    * Insert an entity
    *
    * @param {Object} entity
-   * @returns {Promise}
+   * @returns {ReturnType<import('dynamodb').Model['create']>}
    *
    * @memberof DynamoDbAdapter
    */
   insert(entity) {
-// this is unnecessary
-//     if (!entity.id) {
-//       entity.id = uuid.v4();
-//     }
+    // this is unnecessary
+    //     if (!entity.id) {
+    //       entity.id = uuid.v4();
+    //     }
 
-    return this.methods.create(entity);
+    return this.model.create(entity);
   }
 
   /**
    * Insert many entities
    *
    * @param {Array} entities
-   * @returns {Promise}
+   * @returns {ReturnType<import('dynamodb').Model['create']>}
    *
    * @memberof DynamoDbAdapter
    */
   insertMany(entities) {
-// this is unnecessary
-//     entities.forEach(entity => {
-//       if (!entity.id) {
-//         entity.id = uuid.v4();
-//       }
-//     });
+    // this is unnecessary
+    //     entities.forEach(entity => {
+    //       if (!entity.id) {
+    //         entity.id = uuid.v4();
+    //       }
+    //     });
 
-    return this.methods.create(entities);
+    return this.model.create(entities);
   }
 
   /**
@@ -243,7 +213,7 @@ class DynamoDbAdapter {
    *
    * @param {any} hash
    * @param {Object} update
-   * @returns {Promise}
+   * @returns {ReturnType<import('dynamodb').Model['update']>}
    *
    * @memberof DynamoDbAdapter
    */
@@ -251,27 +221,27 @@ class DynamoDbAdapter {
     //TODO: what about range key?
     const data = { ...update.$set, [this.hashKey]: id };
 
-    return this.methods.update(data);
+    return this.model.update(data);
   }
 
   //TODO: missing straight update method
-  
+
   /**
    * Remove an entity by ID
    *
    * @param {any} hash
-   * @returns {Promise}
+   * @returns {ReturnType<import('dynamodb').Model['destroy']>}
    *
    * @memberof DynamoDbAdapter
    */
   async removeById(id) {
-    return this.methods.destroy(id, { ReturnValues: 'ALL_OLD' });
+    return this.model.destroy(id, { ReturnValues: 'ALL_OLD' });
   }
 
   /**
    * Clear all entities from collection
    *
-   * @returns {Promise}
+   * @returns {ReturnType<import('dynamodb').Model['destroy']>}
    *
    * @memberof DynamoDbAdapter
    */
@@ -283,7 +253,7 @@ class DynamoDbAdapter {
    * Convert DB entity to JSON object
    *
    * @param {any} entity
-   * @returns {Object}
+   * @returns {object}
    * @memberof DynamoDbAdapter
    */
   entityToObject(entity) {
@@ -300,34 +270,35 @@ class DynamoDbAdapter {
    *  - query
    *
    * @param {Object} params
-   * @returns {MongoQuery}
+   * @returns {ReturnType<ReturnType<import('dynamodb').Model['scan']>['loadAll']>}
    */
   createCursor(params) {
-    if (params) {
-      const q = this.model.scan();
-      // Limit
-      if (_.isNumber(params.limit) && params.limit > 0) {
-        q.limit(params.limit);
-      }
-
-      const { query = {} } = params;
-
-      Object.keys(query).forEach(key => {
-        q.where(key).equals(query[key]);
-      });
-
-      return q.loadAll();
+    if (!params) {
+      return this.model.scan().loadAll();
     }
 
-    return this.model.scan().loadAll();
+    const scan = this.model.scan();
+
+    // Limit
+    if (_.isNumber(params.limit) && params.limit > 0) {
+      scan.limit(params.limit);
+    }
+
+    const { query = {} } = params;
+
+    Object.keys(query).forEach((key) => {
+      scan.where(key).equals(query[key]);
+    });
+
+    return scan.loadAll();
   }
 
   /**
    * Transforms 'idField' into DynamoDb's 'hash'
-   * @param {Object} entity
-   * @param {String} idField
+   * @param {object} entity
+   * @param {string} idField
    * @memberof DynamoDbAdapter
-   * @returns {Object} Modified entity
+   * @returns {object} Modified entity
    */
   beforeSaveTransformID(entity /*, idField*/) {
     let newEntity = _.cloneDeep(entity);
@@ -337,10 +308,10 @@ class DynamoDbAdapter {
 
   /**
    * Transforms DynamoDb's 'hash' into user defined 'idField'
-   * @param {Object} entity
-   * @param {String} idField
+   * @param {object} entity
+   * @param {string} idField
    * @memberof DynamoDbAdapter
-   * @returns {Object} Modified entity
+   * @returns {object} Modified entity
    */
   afterRetrieveTransformID(entity /*, idField*/) {
     return entity;
